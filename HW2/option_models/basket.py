@@ -112,9 +112,9 @@ def basket_price_norm_analytic(
     PUT YOUR CODE BELOW
     '''
     cov_m = vol * cor_m * vol[:,None]
-    price = normal_formula(strike=120, 
+    price = normal_formula(strike=strike, 
                            spot=weights @ spot, vol= np.sqrt(weights@cov_m@weights[:,None]), 
-                           texp=texp,  intr=0.0, divr=0.0, cp_sign=1)
+                           texp=texp,  intr=intr, divr=divr, cp_sign=1)
     return price[0]
 
 def spread_price_kirk(strike, spot, vol, texp, corr, intr=0, divr=0, cp_sign=1):
