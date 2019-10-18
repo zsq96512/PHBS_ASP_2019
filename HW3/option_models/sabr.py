@@ -234,7 +234,9 @@ class ModelBsmMC:
         this is the opposite of bsm_vol in ModelHagan class
         use bsm_model
         '''
-        return 0
+        price=self.price(strike=strike,spot=spot,texp=self.texp,sigma=self.sigma,cp_sign=1)
+        vol=self.bsm_model.impvol(price_in=price, strike=strike, spot=spot, texp=self.texp, cp_sign=1)
+        return vol
     
     def price(self, strike, spot, texp=None, sigma=None, cp_sign=1):
         '''
@@ -260,10 +262,12 @@ class ModelBsmMC:
                 vec_sigma[:,i]=vec_sigma[:,i-1]*np.exp(alpha*np.sqrt(1/time_step)*norm_z[:,i]-0.5*alpha**2*1/time_step)
                 vec_price[:,i]=vec_price[:,i-1]+vec_sigma[:,i]*norm_w[:,i]*np.sqrt(1/time_step)-0.5*vec_sigma[:,i]**2*1/time_step
         price=np.zeros(shape=np.size(strike))
+        var=np.zeros(shape=np.size(strike))
         for i in range(0,np.size(strike)):
             
             price[i]=np.mean(np.fmax(0,np.exp(vec_price[:,-1])-strike[i]))
-        return price     
+            var[i]=np.std(np.fmax(0,np.exp(vec_price[:,-1])-strike[i]))
+        return price,var     
 
 '''
 MC model class for Beta=0
@@ -291,7 +295,10 @@ class ModelNormalMC:
         this is the opposite of normal_vol in ModelNormalHagan class
         use normal_model 
         '''
-        return 0
+        price=self.price(strike=strike,spot=spot,texp=self.texp,sigma=self.sigma,cp_sign=1)
+        vol=self.normal_model.impvol(price_in=price, strike=strike, spot=spot, texp=self.texp, cp_sign=1)
+        return vol
+
         
     def price(self, strike, spot, texp=None, sigma=None, cp_sign=1):
         '''
@@ -319,10 +326,12 @@ class ModelNormalMC:
                 vec_sigma[:,i]=vec_sigma[:,i-1]*np.exp(alpha*np.sqrt(1/time_step)*norm_z[:,i]-0.5*alpha**2*1/time_step)
                 vec_price[:,i]=vec_price[:,i-1]+vec_sigma[:,i]*norm_w[:,i]*np.sqrt(1/time_step)
         price=np.zeros(shape=np.size(strike))
+        var=np.zeros(shape=np.size(strike))
         for i in range(0,np.size(strike)):
             
             price[i]=np.mean(np.fmax(vec_price[:,-1]-strike[i],0))
-        return price
+            var[i]=np.std(np.fmax(vec_price[:,-1]-strike[i],0))
+        return price,var
 
 '''
 Conditional MC model class for Beta=1
@@ -354,7 +363,10 @@ class ModelBsmCondMC:
         use bsm_model
         should be same as bsm_vol method in ModelBsmMC (just copy & paste)
         '''
-        return 0
+        price=self.price(strike=strike,spot=spot,texp=self.texp,sigma=self.sigma,cp_sign=1)
+        vol=self.bsm_model.impvol(price=price, strike=strike, spot=spot, texp=self.texp, cp_sign=1)
+        return vol
+
     
     def price(self, strike, spot, texp=None, sigma=None, cp_sign=1):
         '''
@@ -380,13 +392,13 @@ class ModelBsmCondMC:
         I_T=(np.sum(2*vec_sigma**2,axis=1)-vec_sigma[:,0]**2-vec_sigma[:,-1]**2)*1/time_step/2
         spot=spot*np.exp(rho/alpha*(vec_sigma[:,-1]-sigma)-rho**2/2*I_T)
         sigma=np.sqrt((1-rho**2)*I_T/texp)
-        price=np.zeros(shape=np.size(strike))
-        spot=np.mean(spot)
-        sigma=np.mean(sigma)        
+        price=np.zeros(shape=np.size(strike))  
+        var=np.zeros(shape=np.size(strike))
         import option_models as opt
         for i in range(0,np.size(strike)):
-            price[i]=bsm.price(strike=strike[i],spot=spot,texp=texp,vol=sigma)
-        return price
+            price[i]=np.mean(bsm.price(strike=strike[i],spot=spot,texp=texp,vol=sigma))
+            var[i]=np.std(bsm.price(strike=strike[i],spot=spot,texp=texp,vol=sigma))
+        return price,var
 
 '''
 Conditional MC model class for Beta=0
@@ -415,7 +427,9 @@ class ModelNormalCondMC:
         use normal_model
         should be same as norm_vol method in ModelNormalMC (just copy & paste)
         '''
-        return 0
+        price=self.price(strike=strike,spot=spot,texp=self.texp,sigma=self.sigma,cp_sign=1)
+        vol=self.bsm_model.impvol(price_in=price, strike=strike, spot=spot, texp=self.texp, cp_sign=1)
+        return vol
         
     def price(self, strike, spot, texp=None, sigma=None, cp_sign=1):
         '''
@@ -424,12 +438,13 @@ class ModelNormalCondMC:
         You may fix the random number seed
         '''
         np.random.seed(12345)
-        NumSim=self.NumSim
-        time_step=self.time_step
-        rho=self.rho
-        sigma = self.sigma
-        alpha = self.alpha  
-        texp=self.texp
+        NumSim=1000
+        time_step=100
+        rho=-0.25
+        sigma = 20
+        alpha = 0.5 
+        texp=1
+        spot=100
         norm_z=np.random.normal(size=(NumSim,time_step))
         vec_sigma=np.zeros(shape=(NumSim,time_step))
         for i in range(0,time_step): 
@@ -440,10 +455,9 @@ class ModelNormalCondMC:
         spot=spot+rho/alpha*(vec_sigma[:,-1]-sigma)
         I_T=(np.sum(2*vec_sigma**2,axis=1)-vec_sigma[:,0]**2-vec_sigma[:,-1]**2)*1/time_step/2
         sigma=np.sqrt((1-rho**2)*I_T/texp)
-        spot=np.mean(spot)
-        sigma=np.mean(sigma)
         price=np.zeros(shape=np.size(strike))
-        import option_models as opt
+        var=np.zeros(shape=np.size(strike))
         for i in range(0,np.size(strike)):
-            price[i]=opt.normal.price(strike=strike[i],spot=spot,texp=texp/100,vol=sigma)
-        return price
+            price[i]=np.mean(normal.price(strike=strike[i],spot=spot,texp=texp,vol=sigma))
+            var[i]=np.std(normal.price(strike=strike[i],spot=spot,texp=texp,vol=sigma))
+        return price,var
